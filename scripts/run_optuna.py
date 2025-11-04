@@ -21,7 +21,7 @@ hyperprior = dict(
     hidden_features=(4, 64),
     num_transforms=(1, 5),
     log2_batch_size=(3, 8),
-    learning_rate=(1e-5, 1e-2),
+    learning_rate=(1e-4, 1e-2),
 )
 
 
@@ -54,12 +54,12 @@ def objective(trial, x, theta, model_dir):
 
     # setup networks and hyperparameters
     nets = [ili.utils.load_nde_lampe(
-        engine='NPE', model='maf',
-        hidden_features=16, num_transforms=5
+        engine='NPE', model=model,
+        hidden_features=hidden_features, num_transforms=num_transforms
     )]
     train_args = {
-        'training_batch_size': 64,
-        'learning_rate': 5e-5
+        'training_batch_size': batch_size,
+        'learning_rate': learning_rate
     }
     runner = InferenceRunner.load(
         backend='lampe',
@@ -85,7 +85,7 @@ def objective(trial, x, theta, model_dir):
     # evaluate the posterior and save to file
     # log_prob_test = evaluate_posterior(
     #     posterior, x_test, theta_test)
-    log_prob_test = summaries['log_prob_test']
+    log_prob_test = summaries[0]['best_validation_log_prob']
     with open(join(exp_dir, 'log_prob_test.txt'), 'w') as f:
         f.write(f'{log_prob_test}\n')
 
@@ -122,7 +122,7 @@ def run_experiment(model_library, model_name):
 
 if __name__ == '__main__':
     # experiment settings
-    model_library = '/Users/maho/git/tailed-normal-sbi/notebooks/sci-2-dim-models'
+    model_library = '../data/sci-2-dim-models'
     model_name = 'tailed_power'
 
     run_experiment(model_library, model_name)
