@@ -14,7 +14,7 @@ from toolbox.priors import get_priors
 
 def get_hyperprior():
     hyperprior = dict(
-        model=['nsf'],
+        model=['nsf', 'maf'],
         hidden_features=(4, 64),
         num_transforms=(1, 5),
         log2_batch_size=(3, 8),
@@ -174,7 +174,6 @@ if __name__ == '__main__':
     # experiment settings
     model_library = '../data/sci-2-dim-models'
     model_name = 'tailed_power'  # 'tailed_power' or 'uniform_power'
-
-    Nexp_per_job = 20  # number of experiments per SLURM job
+    Nexp_per_job = 40  # number of experiments per SLURM job
 
     run_experiment(model_library, model_name, Nexp_per_job)
