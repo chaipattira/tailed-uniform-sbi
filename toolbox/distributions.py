@@ -117,5 +117,8 @@ class TailedNormal(Distribution):
         return 0.5 * (self.a + self.b)
 
 
-IndependentTailedNormal = type('IndependentTailedNormal', (CustomIndependent,), {
-                               'Distribution': TailedNormal})
+class IndependentTailedNormal(CustomIndependent):
+    Distribution = TailedNormal
+
+    def sample_lhs(self, n_samples):
+        return self.base_dist.sample_lhs(n_samples)
