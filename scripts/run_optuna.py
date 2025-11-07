@@ -107,9 +107,7 @@ def objective(
         yaml.dump(mcfg, f)
 
     # evaluate the posterior and save to file
-    log_prob_test = evaluate_posterior(
-        posterior, x_test, theta_test)
-    log_prob_test = summaries[0]['best_validation_log_prob']
+    log_prob_test = evaluate_posterior(posterior, x_test, theta_test)
     with open(join(exp_dir, 'log_prob_test.txt'), 'w') as f:
         f.write(f'{log_prob_test}\n')
 
