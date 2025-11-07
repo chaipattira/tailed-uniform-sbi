@@ -6,6 +6,7 @@ import ili
 import optuna
 from os.path import join
 import numpy as np
+import matplotlib.pyplot as plt
 from ili.inference import InferenceRunner
 from ili.dataloaders import NumpyLoader
 from toolbox.priors import get_priors
@@ -25,6 +26,17 @@ def get_hyperprior():
 def evaluate_posterior(posterior, x, theta):
     log_prob = posterior.log_prob(theta=theta, x=x)
     return log_prob.mean()
+
+
+def plot_training_history(histories, out_dir):
+    # Plot training history
+    f, ax = plt.subplots(1, 1, figsize=(6, 4))
+    for i, h in enumerate(histories):
+        ax.plot(h['validation_log_probs'], label=f'Net {i}', lw=1)
+    ax.set(xlabel='Epoch', ylabel='Validation log prob')
+    ax.legend()
+    f.savefig(join(out_dir, 'loss.jpg'), dpi=100, bbox_inches='tight')
+    plt.close(f)
 
 
 def objective(
@@ -100,6 +112,9 @@ def objective(
     log_prob_test = summaries[0]['best_validation_log_prob']
     with open(join(exp_dir, 'log_prob_test.txt'), 'w') as f:
         f.write(f'{log_prob_test}\n')
+
+    # plot training history
+    plot_training_history(summaries, exp_dir)
 
     return log_prob_test
 
