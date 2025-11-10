@@ -7,13 +7,14 @@
 #SBATCH --partition=shared  # Partition name
 #SBATCH --account=phy240043  # Account name
 
-conda activate your-env-name
+module load anaconda
+conda activate tailed-uniform
 
 net_index=$SLURM_ARRAY_TASK_ID
 
 # Command to run for each lhid
-cd /path/to/your/tailed-normal-sbi/scripts
+cd /home/x-ctirapongpra/scratch/tailed-uniform-sbi
 
 echo "Running optuna inference on job $net_index"
 
-python -m run_optuna.py
+python /home/x-ctirapongpra/scratch/tailed-uniform-sbi/scripts/run_optuna.py

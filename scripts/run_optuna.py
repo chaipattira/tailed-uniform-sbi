@@ -170,8 +170,8 @@ def run_experiment(
 
 if __name__ == '__main__':
     # experiment settings
-    model_library = '../data/sci-2-dim-models'
-    model_name = 'tailed_power'  # 'tailed_power' or 'uniform_power'
+    model_library = '/home/x-ctirapongpra/scratch/tailed-uniform-sbi/sci-2-dim-models'
+    model_name = 'uniform_power'  # 'tailed_power' or 'uniform_power'
     Nexp_per_job = 40  # number of experiments per SLURM job
 
     run_experiment(model_library, model_name, Nexp_per_job)
