@@ -1,5 +1,0 @@
-batch_size: 32
-hidden_features: 56
-learning_rate: 0.0024878259522514742
-model: maf
-num_transforms: 4
