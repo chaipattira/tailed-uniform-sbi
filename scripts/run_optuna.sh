@@ -3,7 +3,7 @@
 #SBATCH --array=0-8  # Array range
 #SBATCH --nodes=1               # Number of nodes
 #SBATCH --ntasks=4            # Number of tasks
-#SBATCH --time=4:00:00         # Time limit
+#SBATCH --time=6:00:00         # Time limit
 #SBATCH --partition=shared  # Partition name
 #SBATCH --account=phy240043  # Account name
 
