@@ -1,5 +1,0 @@
-batch_size: 8
-hidden_features: 61
-learning_rate: 0.0002263603601215295
-model: nsf
-num_transforms: 5
