@@ -6,8 +6,8 @@ from toolbox.distributions import IndependentTailedNormal
 
 def get_param_ranges():
     # Parameter ranges [Om, h]
-    param_1_range = (0.24, 0.40)   # Om
-    param_2_range = (0.61, 0.73)    # h
+    param_1_range = (0.27, 0.37)   # Om
+    param_2_range = (0.63, 0.71)    # h
     param_ranges = [param_1_range, param_2_range]
     return param_ranges
 
