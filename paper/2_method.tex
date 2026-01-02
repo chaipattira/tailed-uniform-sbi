@@ -1,0 +1,92 @@
+\section{Methods} \label{sec:methods}
+\subsection{Simulation-based Inference}
+For clarity, we review, very briefly first, the notion of simulation-based inference (SBI) \citep{cranmer2020}.
+We define a simulator as a black box function $\mathcal{M}$ that aims to mimic a physical, possibly stochastic, generative process; that is, it maps some parameters $\boldsymbol{\theta} \in \Theta \subseteq \mathbb{R}^d$ to observable quantities $\mathbf{x} \in \mathcal{X} \subseteq \mathbb{R}^D$.
+
+To generate each data-parameter pair $(\boldsymbol{\theta}_i,\mathbf{x}_i)$, we: (1) sample parameters $\boldsymbol{\theta}_i \sim \mathcal{\widetilde P}(\boldsymbol{\theta})$ from the proposal prior, (2) run the forward model $\mathbf{x}_i = \mathcal{M}(\boldsymbol{\theta}_i) + \boldsymbol{\epsilon}_i$ where $\boldsymbol{\epsilon}_i$ represents some systematic noise, and (3) store the resulting data-parameter pairs. The upshot is that we can later feed these into an inverse model to make inferences on some real data $\mathbf{x}= \mathbf{x}_0$.
+
+\textbf{Bayesian workflow} \;\; The goal of SBI---like any other inference problems---is to discern the posterior distribution, which encodes all the ``relevant'' information (that is, point estimates and error bars) about the parameters of interest given an observed dataset $\mathbf{x_0}$. In most cases, such posterior is not available in closed form, but because it is contingent upon the provided data, we can invoke Bayes' theorem to write
+\begin{equation}
+    \mathcal{P}(\boldsymbol{\theta} \mid \mathbf{x}_0) \;=\; \frac{\mathcal{P}(\mathbf{x}_0 \mid \boldsymbol{\theta}) \, \mathcal{P}(\boldsymbol{\theta})}{\mathcal{P}(\mathbf{x}_0)}.
+\end{equation}
+Here, $\mathcal{P}(\mathbf{x}_0 \mid \boldsymbol{\theta})$ is the likelihood (the probability of the data given certain parameters), $\mathcal{P}(\boldsymbol\theta)$ is the prior (the proxy for our initial belief regarding the true distribution of the parameters), and $\mathcal{P}(\mathbf{x}_0)=\int\mathcal{P}(\mathbf{x}_0 \mid \boldsymbol{\theta}) \, \mathcal{P}(\boldsymbol{\theta})\,\dd{\boldsymbol\theta}$ is the evidence, which is merely a normalization constant.
+
+\textbf{Neural posterior estimation (NPE)}\;\; Our objective then is to construct a neural architecture $q_w(\boldsymbol\theta\mid\mathbf x)$ with weights $w$ that outputs a probability distribution over $\boldsymbol\theta$ which approximates mapping from observational data to full posterior distribution $\mathcal{P}(\boldsymbol\theta\mid\mathbf x)$ \citep{papamakarios2016,greenberg2019}. To train this network to accurately represent the conditional probability, we maximize the joint likelihood of our training data $\mathcal{D}_{\text{train}}$. This is akin to minimizing the negative log-probability loss
+\begin{align}
+\mathcal{L}_{\text{NPE}} :&= -\mathbb{E}_{\mathcal{D}_{\text{train}}} \log q_w(\boldsymbol\theta|\mathbf{x})\\
+&= -\mathbb{E}_{\mathcal{D}_{\text{train}}} \log \left[\frac{\mathcal{P} (\boldsymbol\theta)}{\Tilde{\mathcal{P}}(\boldsymbol\theta)} q_w(\boldsymbol\theta|\mathbf{x})\right],
+\end{align}
+where the expectation $\mathbb{E}_{\mathcal{D}_{\text{train}}}$ in the loss function is taken over all parameter-observation pairs $\{(\boldsymbol\theta_i, \mathbf{x}_i)\}_{i=1}^N$ in the training dataset.
+
+If such training data exhibits sufficient diversity and the neural architecture possesses adequate coverage of the parameter space $\Theta \subset \mathbb{R}^d$, then minimization of $\mathcal{L}_{\text{NPE}}$ over the network weights $w$ will drive $q_w(\boldsymbol\theta\mid\mathbf{x})$ toward the true posterior distribution $\mathcal{P}(\boldsymbol\theta\mid\mathbf{x})$ \citep{hornik1989}.
+As a result, we can sample at inference time by evaluating the log-density of simulated parameters beforehand during training.
+
+\textbf{Priors} \;\; It is crucial to make clear the difference between proposal and assumed priors:
+\begin{itemize}
+    \item The proposal prior $\tilde{\mathcal{P}}(\boldsymbol\theta)$, by definition, is the empirical distribution of parameters $\boldsymbol\theta$ found in the training dataset $\mathcal{D}_{\text{train}}$. For one thing, it will depend on our sampling strategy (i.e., a Latin hypercube) used to create training simulations.
+    \item On the other hand, our preconceived notion of the global parameter distribution is encoded in the assumed prior $\mathcal{P}(\boldsymbol\theta)$, which, we should note, is an experimental design choice. It reflects scientific understanding, theoretical constraints, or previous empirical knowledge about plausible parameter values. In cosmological inference---for example---we may use theoretical arguments about structure formation processes to assume that certain parameters follow log-normal distributions.
+\end{itemize}
+
+Broadly speaking, we can choose the assumed and proposed priors to be identical. This alignment, however, is not always preferable. Take a scenario where we sample training simulations from a uniform distribution $\tilde{\mathcal{P}}(\theta) = \mathcal{U}([\theta_{\min}, \theta_{\max}])$ to ensure adequate coverage, while our scientific understanding may instead motivate a Gaussian prior $\mathcal P(\theta) = \mathcal{N}(\mu, \Sigma)$. In such a case, the neural network can only learn to assign reasonable probability densities to regions where it has observed training examples, that is, $\tilde{\mathcal{P}}(\theta) > 0$. What about regions that lack training data? Since we do not have any support there, the neural output will tend to zero $q_w(\boldsymbol\theta|\mathbf{x}) \approx 0$, leading to poor inference quality near the boundaries.
+
+\subsection{The Tailed-Uniform Proposal}
+Now for the heart of the matter, we will describe the theoretical foundations of the \textit{Tailed-Uniform}, our suggested proposal that offers a smooth, continuously differentiable density across $\mathbb{R}^d$. We hope that by assigning weights beyond the primary region of interest, we can alleviate the sharp discontinuities at the boundary.
+
+\textbf{One-dimension derivation} \;\; To kick off the discussion, we consider a one-dimensional ($d = 1$) case and define the probability density function as
+\begin{equation}
+\tilde{\mathcal{P}}_{\text{TailedUniform}}(x; a, b, \sigma) = \begin{cases}
+A \cdot \mathcal N(a, \sigma^2), & x \leq a \\
+B \cdot \mathcal U(a, b), & x \in [a, b] \\
+A \cdot \mathcal N(b, \sigma^2), & x \geq b
+\end{cases}
+\end{equation}
+where $a$ and $b$ define the boundaries of the uniform core region, and $\sigma$ controls the width of the Gaussian tails.
+We also impose continuity at the boundary to guarantee that our distribution is well-defined, which in turn establishes the values of the normalization constants.
+
+Putting things together, we have
+\begin{align}
+A = \frac{\sqrt{2\pi\sigma^2}}{\sqrt{2\pi\sigma^2} + (b-a)} \text{ and } B = \frac{b-a}{\sqrt{2\pi\sigma^2} + (b-a)},
+\end{align}
+which ensures that the distribution integrates to unity across the entire domain, and the Gaussian tail matches the uniform core at the left and right boundaries.
+
+\textbf{Generalizing to higher dimensions} \;\; To generalize to a multivariate parameter space $\boldsymbol{\theta} \in \mathbb{R}^d$, we write it as a product of independent uni-variate \textit{Tailed-Uniform} distributions
+\begin{equation}
+\tilde{\mathcal{P}}_{\text{TailedUniform}}(\boldsymbol{\theta}; \mathbf{a}, \mathbf{b}, \boldsymbol{\sigma}) = \prod_{i=1}^{d}\tilde{\mathcal{P}}_{\text{TailedUniform}}(\theta_i; a_i, b_i, \sigma_i),
+\end{equation}
+where $\mathbf{a} = (a_1, \ldots, a_d)$ and $\mathbf{b} = (b_1, \ldots, b_d)$ define the hypercube boundaries, and $\boldsymbol{\sigma} = (\sigma_1, \ldots, \sigma_d)$ controls the tail-widths in each dimension.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/uniform_vs_tailed_uniform.pdf}
+    \caption{The standard uniform distribution (blue) has constant probability density between -1 and 1 with zero probability outside this range. The tailed uniform distribution (magenta) maintains a uniform density in the same central region $[-1, 1]$ but extends beyond these boundaries with Gaussian tails characterized by standard deviation $\sigma = 0.2$.}
+    \label{fig:distribution}
+\end{figure}
+
+\begin{algorithm}
+\SetAlgoLined
+\KwIn{Bounds $\mathbf{a}, \mathbf{b} \in \mathbb{R}^d$, tail widths $\boldsymbol{\sigma} \in \mathbb{R}^d$}
+\KwOut{Sample $\boldsymbol{\theta} \in \mathbb{R}^d$}
+\For{$i = 1$ \KwTo $d$}{
+    Compute normalization constants $A_i, B_i$\;
+    Sample $r \sim \mathcal{U}(0, 1)$\;
+    \eIf{$r < A_i$}{
+        Sample $z \sim \mathcal{N}(0, \sigma_i^2)$\;
+        \eIf{$z < 0$}{
+            $\theta_i \leftarrow z + a_i$ \tcp*{Left tail}
+        }{
+            $\theta_i \leftarrow z + b_i$ \tcp*{Right tail}
+        }
+    }{
+        $\theta_i \sim \mathcal{U}(a_i, b_i)$ \tcp*{Uniform core}
+    }
+}
+\Return $\boldsymbol{\theta} = (\theta_1, \ldots, \theta_d)$\;
+\caption{Tailed-Uniform Sampling}
+\label{alg:tailed_normal_sampling}
+\end{algorithm}
+
+Here, the key hyperparameter is the tail width $\sigma_i$, which controls the balance between boundary smoothness and sampling efficiency. Smaller values of $\sigma_i$ concentrate more samples within the target region $[a_i, b_i]$ but provide less smoothing at the boundaries. Larger values, on the other hand, provide better boundary smoothness but allocate more resources to regions far from the true posterior support. In practice, we recommend setting $\sigma_i$ as about $10-40$ percent of the box width; that is,
+\begin{equation}
+\sigma_i = \alpha \cdot (b_i - a_i),
+\end{equation}
+where $\alpha \in [0.1, 0.4]$ (see Section~\ref{subsec:bias} for more detail).
