@@ -1,0 +1,60 @@
+\documentclass[twocolumn]{openjournal}
+
+\usepackage{bm}
+\usepackage{xspace}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{physics}
+\usepackage{graphicx}
+\usepackage[authoryear]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage[caption=false]{subfig}
+\usepackage{booktabs}
+\usepackage[capitalise]{cleveref}%must be added after amsmath
+
+% Configure citation colors
+\hypersetup{
+    colorlinks=true,
+    citecolor=purple,
+    linkcolor=black,
+    urlcolor=blue
+}
+
+\bibliographystyle{plainnat}
+
+\creflabelformat{equation}{#2\textup{#1}#3}
+\input{new_commands.tex}
+
+\graphicspath{{./}{figures/}}
+
+\begin{document}
+
+\title{Learning at the Edge: Tailed-Uniform Sampling for Robust Simulation-Based Inference}
+
+\author{Chaipat Tirapongprasert$^{1*}$}
+\author{Matthew Ho$^{1*}$}
+\affiliation{$^{1}$ \columbia}
+
+\begin{abstract}
+We introduce the \textit{Tailed-Uniform} proposal distribution for simulation-based inference. Instead of sampling parameters uniformly within bounded regions, we extend the distribution beyond prior boundaries with smooth Gaussian tails. This eliminates sharp discontinuities that cause neural posterior estimators to fail near parameter space boundaries. The method requires minimal hyperparameter tuning, with tail widths of 10--30\% of the prior width proving robust across problems. We demonstrate these benefits on a synthetic Gaussian linear task and cosmological parameter inference from the matter power spectrum. We also demonstrate that boundary pathologies are systematic rather than data-starved: adding more uniform samples provides negligible benefit, while \textit{Tailed-Uniform} outperforms uniform sampling even with 8$\times$ fewer simulations. This advantage grows in higher dimensions, where boundaries dominate parameter space volume. All code is publicly available at \texttt{\href{https://github.com/chaipattira/tailed-uniform-sbi}{github.com/chaipattira/tailed-uniform-sbi}}.
+\end{abstract}
+\keywords{astrophysics, machine learning, deep learning, simulation-based inference, neural posterior estimation, Bayesian methods}
+
+\input{1_intro.tex}
+\input{2_method.tex}
+\input{3_toy.tex}
+\input{4_science.tex}
+\input{5_conclusion.tex}
+
+\begin{acknowledgments}
+We appreciate Shy Genel's insightful comments on a previous draft.
+This project was developed as part of the Simons Collaboration on ``Learning the Universe."
+\end{acknowledgments}
+
+\bibliography{references}
+
+% \appendix
+% \input{6_appendix}
+
+\end{document}

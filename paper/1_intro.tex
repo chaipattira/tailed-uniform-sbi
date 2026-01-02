@@ -1,0 +1,22 @@
+\section{Introduction} \label{sec:intro}
+
+Today, researchers---among them astronomers---face a growing challenge, as many systems of interest (e.g., exoplanets, black hole binaries, or galaxy clusters) are not amenable to direct probing \citep{feigelson2012,dodelson2020}. Thus emerges a new class of problems known as ``inverse problems," in which the key goal is to identify the model parameters that generated some observed data. The key challenge is that almost all mathematical models of real-world phenomena are complex in that they demand high-dimensional parameter space $\{\boldsymbol{\theta}_i\}$. This makes it prohibitively expensive to compute the probability density for some observation $\mathbf{x}$ (also known as the likelihood $\mathcal P(\mathbf{x}\mid\boldsymbol\theta)$ in the Bayesian parlance).
+
+Simulation-based inference (SBI) has emerged as the gold standard framework for tackling these challenges \citep{cranmer2020}. Instead of evaluating the explicit likelihood, which has proven to be intractable, we can now leverage model simulations to learn approximate posteriors ${\mathcal{\widetilde P}}(\boldsymbol{\theta} \mid \mathbf{x})$ straight from simulated training dataset
+$\mathcal{D}_{\text{train}} = \{( \boldsymbol{\theta}_i,\mathbf{x}_i)\}_{i=1}^{N}$. Needless to say, most exciting SBI methods today rely on neural density estimation \citep{papamakarios2016,greenberg2019,lueckmann2017}, which incorporates some flavors of deep neural networks to learn the posterior distribution. Trained on pairs of parameters and simulations, these neural networks learn the mapping between observations and the corresponding parameters that generated them.
+
+Despite these advances, current SBI methodologies face scalability issues for a myriad of reasons. The first and perhaps most prominent is that as the number of parameters increases, so does the computational cost of generating simulations and approximating the posterior. In high dimensions, the volume of parameter space expands so fast that achieving adequate coverage requires an unacceptably large number of simulations.
+
+The second shortcoming lies in the method by which we generate model realizations. Often, the de facto technique involves a uniform sampling of some parameter combinations within some Latin hypercube \citep{mckay1979}
+\begin{equation}
+    \boldsymbol{\theta} \sim \mathcal{U}([\theta_{\text{min},1},\theta_{\text{max},1}] \times \cdots \times [\theta_{\text{min},d}, \theta_{\text{max},d}]),
+\end{equation}
+which has the advantage of covering the whole region of interest. But as the old adage goes, there is no such thing as a free lunch: the training distribution, sampled with this cookie-cutter approach, will exhibit a sharp discontinuity at the boundary $\partial\Theta$, where the density collapses to zero. Driven by stochastic gradient descent, our neural network can interpolate the internal regions at ease but falls short near those boundaries. The absence of adequate support corrodes the resulting posterior estimates.
+We also believe that such pathology will be exacerbated in higher dimensions by the ``curse of dimensionality," \citep{bellman1961} according to which the volume fraction of points close to boundaries in $d$-dimension scales as $1 - (1-\epsilon)^d$.
+
+To address these problems, we present a novel parameter sampling technique for simulation-based inference. In particular,
+\begin{itemize}
+    \item we propose \textit{Tailed-Uniform}, a hybrid proposal that combines uniform cores with smooth Gaussian tails.
+    \item empirically, \textit{Tailed-Uniform} achieves superior performance \textit{near} the boundary and maintains consistent posterior quality across the overall parameter space.
+    \item We show that our mathematically motivating scheme allows for robust inference with competitive simulation budgets on representative cosmological inference tasks.
+\end{itemize}

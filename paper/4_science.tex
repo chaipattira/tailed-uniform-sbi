@@ -1,0 +1,111 @@
+\section{Science Experiment} \label{sec:sci}
+\subsection{Matter Power Spectrum}
+We next demonstrate the versatility of the \textit{Tailed-Uniform} proposal in a popular inference benchmark in cosmology: the inference of cosmological parameters from the matter power spectrum \citep{dodelson2020}. To recreate the problem, we aim to predict the posterior distribution of two cosmological parameters $\boldsymbol{\theta} = (\Omega_m, h)$ using the forward simulator $\mathcal{M}: \mathbb{R}^2 \rightarrow \mathbb{R}^{64}$ that maps a two-dimensional parameter vector to the power spectrum $\mathbf{P} \in \mathbb{R}^{64}$. Here, $\Omega_m$ is the matter density parameter that governs the growth rate of perturbations and $h$ is the dimensionless Hubble parameter, which determines the physical scale of the horizon at matter-radiation equality.
+
+In modern cosmology, the power spectrum $\mathbf P(k)$ measures the amplitude of density contrast fields $\delta (\mathbf k)$ in Fourier space and is strictly dependent on the magnitude of the wave vector $k = \abs{\mathbf k}$ \citep{dodelson2020}. This can be thought of as the ensemble average of all universes with the same cosmological parameters but different initial fluctuations. We also assume a flat $\Lambda$CDM cosmology with $w_0 = -1$, $w_a = 0$, and negligible neutrino masses $m_\nu = 0$, and fix the remaining cosmological parameters to Planck 2018 \citep{planck2020} values (the primordial scalar amplitude $A_s = 2.105 \times 10^{-9}$, the baryon density parameter $\Omega_b h^2 = 0.02242$, and the scalar spectral index $n_s = 0.9665$).
+
+\textbf{Model} \;\; To circumvent the need to solve the perturbation equations numerically, we use the \texttt{syren-new} emulator \citep{sui2024}, which leverages symbolic regression to produce a closed functional form for the theoretical power spectrum $\mathbf P_{\text{theory}}$ at relatively negligible compute power.
+The power spectrum from \texttt{syren-new} is not the observed power spectrum per se, as our universe (armed with specific initial conditions) is merely one realization of some stochastic process. If we observe a sufficiently large volume---however---different regions within that volume will serve as independent samples of the same underlying process \citep{baumann2022}. Such a system with this nice property is called ``ergodic." But since galaxy surveys cannot cover an infinite volume, the spatial average will not be \textit{exactly} equal to the ensemble average. 
+
+For a comoving survey volume of $V = L^3$, the longest wavelength that fits in the box (i.e., the fundamental mode) is
+$k_f = \abs{\mathbf k} = \frac{2\pi}{L}$,
+and by assuming the universe to be homogeneous and isotropic (i.e., rotationally invariant) on large scales \citep{dodelson2020}, we then find the number of modes inside a spherical shell at wavenumber $k$ with thickness $\Delta k = k_f$ to be
+\begin{equation}
+    N_k = \frac{4\pi k^2 \Delta k}{k_f^3} = \frac{L^3k^2k_f}{2\pi^2}.
+\end{equation}
+This is called ``cosmic variance," which arises from the limited number of independent modes available in our finite observation volume \citep{dodelson2020, baumann2022}.
+
+Together, we can construct an observation as
+\begin{equation}
+\mathbf x_i = \mathbf P(k \mid \boldsymbol\theta_i) = \underbrace{\mathbf P_{\text{theory}}(k \mid \boldsymbol\theta_i)}_{\text{\texttt{syren\_new} emulator}} + \underbrace{\boldsymbol{\epsilon}_i}_{\text{cosmic noise}},
+\end{equation}
+where $\boldsymbol\epsilon_i\sim \mathcal{N}\left(\mathbf{0}, \text{diag}(\sigma^2_1, \ldots, \sigma^2_{N_k})\right)$ represents the heteroskedastic (scale-dependent) cosmic noise with a variance $\sigma_k^2 = \frac{2\mathbf P_{\text{theory}}^2(k \mid \boldsymbol\theta_i)}{N_k}$.
+
+\textbf{Ground Truth}\;\; As in Section \ref{sec:toy}, we have the luxury of direct sampling via MCMC \citep{brooks2011}, as the forward model is explicit and the joint likelihood $\mathcal{P}(\mathbf{x} \mid \boldsymbol{\theta})$ can be evaluated point-wise.
+We choose a truncated Gaussian prior centered at the midpoint of $\Omega_m \in [0.24, 0.40]$ and $h \in [0.61, 0.73]$.
+Assuming independent Gaussian noise in each $k$-bin, we can write the log-likelihood as
+\begin{equation}
+\log \mathcal{P}(\mathbf{x} \mid \boldsymbol{\theta}) = -\frac{1}{2} \sum_{i=1}^{N} \left(\frac{\mathbf x_{i} - P_{\text{theory},i}(\boldsymbol{\theta})}{\sigma_i(\boldsymbol{\theta})}\right)^2 - \sum_{i=1}^{N} \log \sigma_i(\boldsymbol{\theta}),
+\end{equation}
+where the first term quantifies the chi-squared misfit between theory and observation, and the second term accounts for the uncorrelated nature of the noise.
+Putting things together, the log posterior we aim to sample is
+$\log \mathcal{P}(\boldsymbol{\theta} \mid \mathbf x = \mathbf{x}_0) \propto \log \mathcal{P}(\mathbf{x}_0 \mid \boldsymbol{\theta}) + \log \mathcal{P}(\boldsymbol{\theta})$.
+
+To explore this posterior distribution, we run 4 MCMC walkers via the affine-invariant ensemble sampler in the \texttt{emcee} package \citep{foreman-mackey2013}, each generating 2000 samples after a burn-in period of 500 steps to ensure convergence. In total, we collect $4 \times 2000 = 8000$ posterior samples, which we treat as our ground truth.
+
+\textbf{Training and Model Architectures} \;\;In this experiment, we choose a comoving box size of $L = 1000 , h^{-1}\text{Mpc}$ and measure the power spectrum at $N = 64$ logarithmically spaced wavenumbers spanning from the fundamental mode $k_f = 2\pi/L$ to the Nyquist frequency $k_{\text{nyq}} = \pi N/L$, evaluated at the present epoch ($a = 1.0$). Recall again that our raison d'être is to compare the performance of neural networks trained with two distinct proposals $\tilde{\mathcal{P}}_{\text{Uniform}} $ and $\tilde{\mathcal{P}}_{\text{TailedUniform}}$, which by the relative complexity of the problem, will most likely be affected by our architectural choices.
+One could now, like a fervent flâneur, proceed by trial and error: training dozens of models with different configurations and choosing the ones with the best log-probability. But in an effort to avoid unnecessary angst, we choose to perform Bayesian optimization via the \texttt{Optuna} framework \citep{akiba2019} with the search space consisting of the flow architecture, number of hidden features, number of transform layers, batch size, and learning rate.
+Once the hyperparameter search concludes, we rank all trained networks by their validation log-probability and ensemble the top 10 performing models.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/corner_testpoint_3.pdf}
+    \caption{Corner plots comparing posterior estimation performance for test point $\boldsymbol{\theta}_\text{true} = (0.328, 0.676)$ near the parameter space boundary. The \textit{TailedUniform} (green) closely matches the MCMC reference (yellow), maintaining tight concentration along the banana-shaped posterior. In contrast, the \textit{Uniform} (blue) exhibits excessive spread along the degenerate direction, leaking probability mass into regions inconsistent with the data. The characteristic anti-correlation between $\Omega_m$ and $h$ is visible in all methods, but only \textit{TailedUniform} accurately captures the posterior near the boundary.}
+    \label{fig:corner-sci}
+\end{figure}
+
+\subsection{Validation}
+To assess the performance of our competing proposals in this cosmological inference task, we adopt the same spatial evaluation framework as in Section~\ref{sec:toy}. We should first discuss why $\Omega_m$ and $h$ are given special consideration, which led us to select them as the inference parameter. There is a variety of factors, the most notable of which is the strong ``degeneracies'' between them.
+
+\textbf{Degeneracies} \;\; Degeneracy refers to situations in which multiple parameters replicate the same observable.
+In our case, the matter power spectrum at small and intermediate scales is sensitive to the physical matter density, which happens to scale as $\Omega_m h$, rather than by $\Omega_m$ and $h$ separately \citep{peacock1992}. The two parameters are thereby anti-correlated.
+
+As a result, the information embedded in our posterior will be weak along certain directions in the parameter space---that is, where $\Omega_m$ trades off against $h$ such that $\Omega_m h$ remains approximately constant---leading to the slanted banana-shaped contours (as also reflected in the posteriors' performance in Figure~\ref{fig:c2st-sci}).
+Such geometric degeneracies in the power spectrum from different combinations of $\Omega_m$ and $h$, combined with the likelihood being painstakingly non-linear, make this a challenging inference problem.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figures/grid_c2st_heatmaps.pdf}
+    \caption{Spatial distribution of C2ST performance across the $(\Omega_m, h)$ parameter space, with darker blue regions indicating poor distributional matching (C2ST $\ll 0.5$) and orange-red regions indicating good performance (C2ST $\approx 0.5$). \textbf{Top}: \textit{Uniform} versus MCMC reference, showing systematic degradation with blue patches near parameter space edges and corners. \textbf{Bottom}: \textit{TailedUniform} NPE versus reference, demonstrating consistent orange coloration (C2ST $\approx 0.41$--$0.45$) across the parameter space.}
+    \label{fig:c2st-sci}
+\end{figure}
+\subsubsection{Tier One: Single-Point Analysis}
+To study this phenomenon in detail, we first select a test point $\boldsymbol{\theta} = (0.328, 0.676)$ positioned 40\% from the top-right corner. We generate observations and draw $M = 1000$ posterior samples from the MCMC reference, \textit{Uniform}, and \textit{Tailed-Uniform}.
+\begin{table}[h]
+\centering
+\caption{Posterior performance for test point $\boldsymbol{\theta}_\text{true} = (0.328, 0.676)$}
+\label{tab:sci-testpoint}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \multicolumn{2}{c}{\textbf{Parameter Estimates}} & \textbf{C2ST} \\
+\cmidrule(lr){2-3}
+& $\Omega_m$ & $h$ & \\
+\midrule
+Reference & $0.326 \pm 0.005$ & $0.678 \pm 0.004$ & 0.500 \\
+\midrule
+\textit{Tailed-Uniform} & $0.326 \pm 0.008$ & $0.679 \pm 0.006$ & \textbf{0.464} \\
+\midrule
+\textit{Uniform} & $0.329 \pm 0.006$ & $0.676 \pm 0.005$ & 0.395 \\
+\midrule
+\textbf{Improvement} & \textbf{--} & \textbf{--} & \textbf{+17\%}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:corner-sci} shows that \textit{Uniform} has notable dispersion along the degenerate direction. This leakage shows that when observations overlap boundary regions of the training distribution, \textit{Uniform} has learned an excessively broad posterior and is unable to appropriately constrain parameters. The \textit{Tailed-Uniform}, on the other hand, reproduces the banana-shaped contours of the MCMC reference, with samples tightly concentrated around the true parameter values. Table~\ref{tab:sci-testpoint} quantifies these results.
+
+
+
+\subsubsection{Tier Two: Spatial Performance Analysis}
+
+As before, we discretize a uniform rectangular grid with $n = 20$ test locations along each dimension, spanning $\Omega_m \in [0.27, 0.37]$ and $h \in [0.63, 0.71]$. For each of the 400 evaluation points, we generate observations, draw $M = 1000$ posterior samples from all three methods, and calculate pairwise C2ST scores.
+
+\begin{figure}
+\centering
+\begin{subfigure}{\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{figures/grid_c2st_directional.pdf}
+	\end{subfigure}
+\begin{subfigure}{\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{figures/grid_c2st_directional (1).pdf}
+\end{subfigure}
+\caption{C2ST performance as a function of position along two orthogonal directions in parameter space. \textbf{Top}: Along the degeneracy direction, the \textit{Uniform} (yellow) exhibits performance degradation at the boundaries. The \textit{TailedUniform} (green) maintains robust performance throughout. \textbf{Bottom}: Along the perpendicular direction, both methods perform similarly.}
+\label{fig:directional-sci}
+\end{figure}
+
+Both methods achieve similar C2ST scores in Figure~\ref{fig:c2st-sci}, but by eye inspection, \textit{TailedUniform} appears to provide reliable inference everywhere, whereas \textit{Uniform} is only productive near the center. To connect the performance degradation trend to the underlying physics, we propose a different binning strategy.
+We first define the degeneracy direction as $d_1 = \Omega_m + h$, which describes movement along the banana-shaped posterior where the physical matter density $\Omega_m h$ varies slowly. Perpendicular to this, we define $d_2 = \Omega_m - h$, which captures variation across the degeneracy.
+
+Figure~\ref{fig:directional-sci} shows that boundary pathology is anisotropic, with the most severe manifestation along degenerate directions where posteriors are elongated into the prior boundaries. As a result, both approaches perform similarly (excluding statistical fluctuations) along the perpendicular direction $d_2$. However, along the degeneracy direction $d_1$, the \textit{Uniform} performance sinks at both boundaries, with C2ST scores falling to 0.22–0.30. The \textit{Uniform} is unable to learn the posterior tails because the elongated banana-shaped posterior has spread into and beyond areas with sparse training coverage. By extending the simulation distribution beyond the prior boundaries, the \textit{TailedUniform} enables robust, unbiased inference across the full parameter space.
+
