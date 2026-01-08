@@ -1,7 +1,9 @@
+# ABOUTME: Prior distributions for cosmology power spectrum inference
+# ABOUTME: Provides uniform, normal, and tailed-uniform priors for Om and h parameters
 
 import torch
 import ili
-from toolbox.distributions import IndependentTailedNormal
+from toolbox.distributions import IndependentTailedUniform
 
 
 def get_param_ranges():
@@ -38,11 +40,11 @@ def get_priors(device='cpu'):
         device=device
     )
 
-    prior_tailed = IndependentTailedNormal(
+    prior_tailed_uniform = IndependentTailedUniform(
         a=torch.tensor([param_1_range[0], param_2_range[0]],
                        dtype=torch.float32),
         b=torch.tensor([param_1_range[1], param_2_range[1]],
                        dtype=torch.float32),
         sigma=torch.tensor([sigmas[0], sigmas[1]], dtype=torch.float32),
     )
-    return prior_normal, prior_uniform, prior_tailed
+    return prior_normal, prior_uniform, prior_tailed_uniform

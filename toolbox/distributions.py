@@ -1,3 +1,6 @@
+# ABOUTME: Custom probability distributions for simulation-based inference
+# ABOUTME: Implements TailedUniform distribution with half-normal tails outside uniform support
+
 import torch
 from torch.distributions import Distribution, HalfNormal
 from torch.distributions.utils import broadcast_all
@@ -6,7 +9,7 @@ from scipy.stats import qmc
 from ili.utils.distributions_pt import CustomIndependent
 
 
-class TailedNormal(Distribution):
+class TailedUniform(Distribution):
     arg_constraints = {
         'a': torch.distributions.constraints.real,
         'b': torch.distributions.constraints.dependent,
@@ -117,8 +120,8 @@ class TailedNormal(Distribution):
         return 0.5 * (self.a + self.b)
 
 
-class IndependentTailedNormal(CustomIndependent):
-    Distribution = TailedNormal
+class IndependentTailedUniform(CustomIndependent):
+    Distribution = TailedUniform
 
     def sample_lhs(self, n_samples):
         return self.base_dist.sample_lhs(n_samples)
