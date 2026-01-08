@@ -109,22 +109,13 @@ python -m ipykernel install --user --name tailed-uniform --display-name "tailed-
 
 Infer matter density $\Omega_m$ and dimensionless Hubble $h$ from matter power spectrum $P(k)$:
 
-1. Set up Optuna studies for hyperparameter optimization:
-   ```
-   notebooks-clean/sci-2-dim-optuna.ipynb
-   ```
-
+1. Set up Optuna studies for hyperparameter optimization via [sci-2-dim-optuna.ipynb](notebooks-clean/sci-2-dim-optuna.ipynb)
 2. Run parallel hyperparameter search (requires SLURM cluster):
    ```bash
    sbatch scripts/run_optuna.sh
    ```
-
-3. Analyze models and compare against MCMC ground truth:
-   ```
-   notebooks-clean/sci-2-dim-inference.ipynb
-   ```
-
-
+3. Generate ground truth from mcmc via [sci-2-dim-mcmc.ipynb](notebooks-clean/sci-2-dim-mcmc.ipynb)
+3. Analyze models in [sci-2-dim-inference.ipynb](notebooks-clean/sci-2-dim-inference.ipynb)
 
 ---
 
