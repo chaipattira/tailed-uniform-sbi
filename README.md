@@ -39,10 +39,6 @@ $$A = \frac{\sqrt{2\pi\sigma^2}}{\sqrt{2\pi\sigma^2} + (b-a)}, \quad B = \frac{b
 
 $$\tilde{\mathcal{P}}_{\text{TailedUniform}}(\boldsymbol{\theta}; \mathbf{a}, \mathbf{b}, \boldsymbol{\sigma}) = \prod_{i=1}^{d}\tilde{\mathcal{P}}_{\text{TailedUniform}}(\theta_i; a_i, b_i, \sigma_i)$$
 
-**Hyperparameter guidance:** Set tail width as 10-40% of parameter range:
-
-$$\sigma_i = \alpha \cdot (b_i - a_i), \quad \alpha \in [0.1, 0.4]$$
-
 ### Usage Example
 
 Our **Tailed-Uniform** distribution seamlessly integrates into standard SBI workflows:
