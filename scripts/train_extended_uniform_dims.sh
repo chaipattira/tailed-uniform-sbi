@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=ext-uniform-dims
-#SBATCH --array=0-11
+#SBATCH --array=0-19
 #SBATCH --nodes=1
 #SBATCH --ntasks=8
-#SBATCH --time=1:00:00
+#SBATCH --time=2:00:00
 #SBATCH --partition=shared
 #SBATCH --account=phy240043
 #SBATCH --output=/anvil/scratch/x-ctirapongpra/tailed-uniform-sbi/jobout/ext-uniform-dims-%A_%a.out

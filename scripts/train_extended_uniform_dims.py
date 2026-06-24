@@ -1,7 +1,7 @@
 """
 Train one NPE model for the inference-dim-waste experiment.
 Array index → (dim, proposal):
-  dim_idx      = task_id // 4   (0→4, 1→8, 2→16)
+  dim_idx      = task_id // 4   (0→2, 1→4, 2→8, 3→16, 4→20)
   proposal_idx = task_id  % 4   (0→uniform, 1→tailed, 2→extended 0.1, 3→extended 0.3)
 """
 import argparse
@@ -19,7 +19,7 @@ from toolbox.imports import *
 from toolbox.distributions import TailedUniform
 from toolbox.simulators import sample_uniform_lhs
 
-DIMS = [4, 8, 16]
+DIMS = [2, 4, 8, 16, 20]
 PROPOSALS = [
     ('uniform',   None),
     ('tailed',    None),
@@ -39,14 +39,14 @@ def label_for(kind, delta_scale):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--task_id', type=int, required=True,
-                        help='SLURM_ARRAY_TASK_ID (0-11)')
-    parser.add_argument('--n_sims', type=int, default=6000)
+                        help='SLURM_ARRAY_TASK_ID (0-19)')
+    parser.add_argument('--n_sims', type=int, default=50000)
     parser.add_argument('--out_root', type=str,
                         default=os.path.join(ROOT, 'notebooks-clean', 'inference-dim-models'))
     args = parser.parse_args()
 
-    if not (0 <= args.task_id <= 11):
-        raise ValueError(f'task_id must be 0-11, got {args.task_id}')
+    if not (0 <= args.task_id <= 19):
+        raise ValueError(f'task_id must be 0-19, got {args.task_id}')
 
     dim_idx      = args.task_id // 4
     proposal_idx = args.task_id % 4

@@ -22,7 +22,7 @@ sys.path.insert(0, ROOT)
 from toolbox.imports import *
 from toolbox.evaluators import DistanceEvaluator
 
-DIMS          = [4, 8, 16]
+DIMS          = [2, 4, 8, 16, 20]
 DELTA_SCALES  = [0.1, 0.3]
 DISTANCE_BIN_ORDER = ['center', 'r=0.25', 'r=0.5', 'r=0.75', 'r=1.0', '2sigma-extrap']
 
