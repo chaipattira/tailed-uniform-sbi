@@ -52,7 +52,9 @@ PROPOSALS = [
 - `prior_narrow = Uniform(low=[-1]*d, high=[1]*d)`
 - `n_sims = 6000`, `SEED = 42`
 - Architecture: MAF + MADE, `hidden_features=50`, `num_transforms=5` (fixed across all
-  dims to isolate proposal effect, not network capacity)
+  dims to isolate proposal effect, not network capacity; increased from the 2D baseline's
+  16 to give adequate capacity at dim=16 — results are not directly comparable to the 2D
+  experiment in absolute C2ST values, only relative proposal rankings matter here)
 - Output dir: `notebooks-clean/inference-dim-models/dim{d}/{label}/`
 
 ### Label scheme
@@ -63,7 +65,9 @@ PROPOSALS = [
 
 ## Eval Script (`eval_extended_uniform_dims.py`)
 
-Runs sequentially (not a SLURM array). For each dim:
+Runs sequentially (not a SLURM array); accepts no `--dim` argument and loops over all
+three dims internally. Missing posteriors are skipped with a printed warning, matching
+`eval_extended_uniform.py`. For each dim:
 
 1. Instantiate `GaussianLinear(dim=d)` and `DistanceEvaluator(simulator, [(-1,1)]*d, task)`
 2. Load all 4 posteriors from `inference-dim-models/dim{d}/`
@@ -97,6 +101,12 @@ boundary, gray dashed line at C2ST=0.5.
 C2ST at `2σ-extrap` bin vs dim (x-axis: 4, 8, 16) for each proposal. Secondary
 annotation: theoretical waste fraction per (proposal, dim). This is the primary
 claim-A figure.
+
+## SLURM Resources
+
+`train_extended_uniform_dims.sh`: `#SBATCH --array=0-11`, mirror GPU/walltime/memory
+from `train_extended_uniform.sh`. `eval_extended_uniform_dims.sh`: single job, mirror
+resource block from `eval_extended_uniform.sh`.
 
 ## Connections to Existing Code
 
