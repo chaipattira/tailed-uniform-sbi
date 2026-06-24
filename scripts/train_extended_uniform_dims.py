@@ -45,6 +45,9 @@ def main():
                         default=os.path.join(ROOT, 'notebooks-clean', 'inference-dim-models'))
     args = parser.parse_args()
 
+    if not (0 <= args.task_id <= 11):
+        raise ValueError(f'task_id must be 0-11, got {args.task_id}')
+
     dim_idx      = args.task_id // 4
     proposal_idx = args.task_id % 4
     dim          = DIMS[dim_idx]
@@ -111,6 +114,8 @@ def main():
 
     loader = NumpyLoader(x=x, theta=theta)
 
+    # hidden_features=50 (vs 16 in 2D baseline) gives adequate capacity at dim=16;
+    # kept constant across all dims so only proposal type varies between runs.
     nets = [
         ili.utils.load_nde_sbi(engine='NPE', model='maf',  hidden_features=50, num_transforms=5),
         ili.utils.load_nde_sbi(engine='NPE', model='made', hidden_features=50, num_transforms=5),
