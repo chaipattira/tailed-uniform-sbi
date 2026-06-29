@@ -7,8 +7,29 @@ import torch
 from tqdm import tqdm
 import seaborn as sns
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import hamming_loss
+from sklearn.metrics import hamming_loss, roc_auc_score
 from sklearn.model_selection import train_test_split
+from scipy.stats import wasserstein_distance
+
+
+def c2st_auc(X1, X2):
+    """C2ST via AUC-ROC.  0.5 = random (perfect match), higher = more separable (worse).
+    Class-imbalance-immune — safe when len(X1) != len(X2)."""
+    X  = np.vstack([X1, X2])
+    y  = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=42)
+    prob = LogisticRegression(max_iter=1000).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    return roc_auc_score(yte, prob)
+
+
+def sliced_wasserstein(X1, X2, n_proj=50, seed=0):
+    """Sliced Wasserstein distance.  0 = identical distributions, higher = more different.
+    Projects to n_proj random 1-D directions and averages 1-D Wasserstein distances."""
+    rng  = np.random.default_rng(seed)
+    d    = X1.shape[1]
+    dirs = rng.standard_normal((n_proj, d))
+    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+    return float(np.mean([wasserstein_distance(X1 @ v, X2 @ v) for v in dirs]))
 
 
 class SBIEvaluator:
@@ -123,7 +144,7 @@ class GridEvaluator:
         for name, posterior in posterior_dict.items():
             samples = []
             for x_obs in tqdm(observations, desc=name):
-                samples.append(posterior.sample((n_samples,), x_obs).cpu().numpy())
+                samples.append(posterior.sample((n_samples,), x_obs, ).cpu().numpy())
             results[name] = samples
 
         return results
@@ -243,7 +264,7 @@ class CircleEvaluator:
         for name, posterior in posterior_dict.items():
             samples = []
             for x_obs in tqdm(observations, desc=name):
-                samples.append(posterior.sample((n_samples,), x_obs).cpu().numpy())
+                samples.append(posterior.sample((n_samples,), x_obs, ).cpu().numpy())
             results[name] = samples
 
         return results
@@ -257,7 +278,7 @@ class CircleEvaluator:
 
     def compute_c2st_by_radius(self, results, radii):
         """Compute C2ST organized by radius"""
-        methods = ['Uniform', 'TailedUniform', 'Reference']
+        methods = ['Uniform', 'GaussianTailed', 'Reference']
         unique_radii = np.unique(np.round(radii, 3))
         c2st_data = {}
 
@@ -282,9 +303,9 @@ class CircleEvaluator:
         # Define horizontal offsets for each comparison
         offset_amount = 0.01
         offsets = {
-            "Uniform vs TailedUniform": -offset_amount,
+            "Uniform vs GaussianTailed": -offset_amount,
             "Uniform vs Reference": 0,
-            "TailedUniform vs Reference": offset_amount
+            "GaussianTailed vs Reference": offset_amount
         }
 
         for comp in comparisons:
@@ -303,11 +324,11 @@ class CircleEvaluator:
                 upper_err.append(p84 - median)
 
             # Set color and style based on comparison
-            if "Uniform vs TailedUniform" in comp:
+            if "Uniform vs GaussianTailed" in comp:
                 linestyle = '--'
                 alpha = 0.5
                 color = 'gray'
-            elif "TailedUniform vs Reference" in comp:
+            elif "GaussianTailed vs Reference" in comp:
                 linestyle = '-'
                 alpha = 0.85
                 color = 'green'
@@ -442,7 +463,7 @@ class RectGridEvaluator:
                     x_obs = x_obs_log
 
                 # Sample from posterior
-                samples = posterior.sample((n_samples,), x_obs).cpu().numpy()
+                samples = posterior.sample((n_samples,), x_obs, ).cpu().numpy()
                 samples_list.append(samples)
 
             results[name] = np.array(samples_list)
@@ -564,7 +585,7 @@ class RectGridEvaluator:
 
         for i, comp in enumerate(comparisons):
             im = axes[i].imshow(c2st_grid[comp], cmap='RdYlBu_r',
-                               vmin=0.2, vmax=0.5,
+                               vmin=0.2, vmax=0.6,
                                extent=[self.param_ranges[0][0],
                                       self.param_ranges[0][1],
                                       self.param_ranges[1][0],
@@ -686,6 +707,19 @@ class DistanceEvaluator:
 
         return np.array(test_points), np.array(distance_bins)
 
+    def get_reference_samples(self, x_obs, n_samples):
+        """Sample from the reference posterior for a given observation.
+        Handles both GaussianLinear (_get_reference_posterior) and
+        GaussianLinearUniform (_sample_reference_posterior) task APIs."""
+        if hasattr(self.task, '_get_reference_posterior'):
+            ref_post = self.task._get_reference_posterior(observation=x_obs.unsqueeze(0))
+            return ref_post.sample((n_samples,)).cpu().numpy()
+        # _sample_reference_posterior uses Pyro batched sampling which can produce
+        # shape (n_samples, 1, dim) or (n_samples*dim,) depending on Pyro version;
+        # reshape to canonical (n_samples, dim).
+        samples = self.task._sample_reference_posterior(n_samples, observation=x_obs.unsqueeze(0))
+        return samples.reshape(n_samples, self.dim).cpu().numpy()
+
     def evaluate_all(self, posterior_dict, test_points, n_samples):
         """Evaluate all posteriors including reference"""
         observations = []
@@ -701,15 +735,14 @@ class DistanceEvaluator:
         # Reference posteriors
         ref_samples = []
         for x_obs in tqdm(observations, desc="Reference"):
-            ref_post = self.task._get_reference_posterior(observation=x_obs.unsqueeze(0))
-            ref_samples.append(ref_post.sample((n_samples,)).cpu().numpy())
+            ref_samples.append(self.get_reference_samples(x_obs, n_samples))
         results['Reference'] = ref_samples
 
         # Learned posteriors
         for name, posterior in posterior_dict.items():
             samples = []
             for x_obs in tqdm(observations, desc=name):
-                samples.append(posterior.sample((n_samples,), x_obs).cpu().numpy())
+                samples.append(posterior.sample((n_samples,), x_obs, ).cpu().numpy())
             results[name] = samples
 
         return results

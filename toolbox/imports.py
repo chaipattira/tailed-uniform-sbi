@@ -11,6 +11,7 @@ from scipy.stats import truncnorm, qmc, uniform
 from tqdm import tqdm
 import sbibm
 from sbibm.tasks.gaussian_linear.task import GaussianLinear
+from sbibm.tasks.gaussian_linear_uniform.task import GaussianLinearUniform
 import scipy.stats as stats
 from scipy.stats import wasserstein_distance, ks_2samp
 from sklearn.linear_model import LogisticRegression

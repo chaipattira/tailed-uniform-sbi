@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from scipy.stats import qmc
 import symbolic_pofk.syren_new as syren_new
+from toolbox.transforms import degen_rotation
 
 
 def syren_simulator(
@@ -36,6 +37,18 @@ def syren_simulator(
     pk_w_noise = pk_syren_theory + std_mode * \
         np.random.randn(*pk_syren_theory.shape)
     return pk_w_noise
+
+
+def syren_simulator_rotated(phi, L=1000, N=128, a=1.0):
+    """Simulator in rotated (phi1, phi2) space.
+
+    Accepts phi = [phi1, phi2], converts to (Om, h) via DegenRotation,
+    then delegates to syren_simulator. Use this when training SBI in the
+    degeneracy-aligned parameterization.
+    """
+    phi1, phi2 = float(phi[0]), float(phi[1])
+    Om, h = degen_rotation.inverse(phi1, phi2)
+    return syren_simulator((Om, h), L=L, N=N, a=a)
 
 
 def sample_uniform_lhs(n_samples, param_ranges, device='cpu'):
