@@ -17,7 +17,11 @@ import torch
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from toolbox.imports import *
+import ili
+from ili.dataloaders import NumpyLoader
+from ili.inference import InferenceRunner
+from sbibm.tasks.gaussian_linear.task import GaussianLinear
+from sbibm.tasks.gaussian_linear_uniform.task import GaussianLinearUniform
 from toolbox.distributions import GaussianTailed, LinearTailed, ExponentialTailed, UniformTailed
 from toolbox.simulators import sample_uniform_lhs
 

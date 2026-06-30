@@ -10,7 +10,19 @@ from scipy.stats import qmc
 from ili.utils.distributions_pt import CustomIndependent
 
 
-class GaussianTailed(Distribution):
+class TailedDistribution(Distribution):
+    def sample_lhs(self, n_samples):
+        sampler = qmc.LatinHypercube(d=len(self.a.flatten()), seed=42)
+        u = torch.tensor(sampler.random(n_samples), dtype=torch.float32, device=self.a.device)
+        return self.icdf(u)
+
+
+class IndependentTailed(CustomIndependent):
+    def sample_lhs(self, n_samples):
+        return self.base_dist.sample_lhs(n_samples)
+
+
+class GaussianTailed(TailedDistribution):
     arg_constraints = {
         'a': torch.distributions.constraints.real,
         'b': torch.distributions.constraints.dependent,
@@ -106,29 +118,15 @@ class GaussianTailed(Distribution):
                            torch.where(u > thresh_right, right_tail,
                                        x_middle))
 
-    def sample_lhs(self, n_samples):
-        """Sample using Latin Hypercube Sampling"""
-        # Generate LHS samples in [0,1]^d
-        sampler = qmc.LatinHypercube(d=len(self.a.flatten()), seed=42)
-        u_samples = sampler.random(n_samples)
-        u_tensor = torch.tensor(
-            u_samples, dtype=torch.float32, device=self.a.device)
-
-        # Transform using inverse CDF
-        return self.icdf(u_tensor)
-
     def mean(self):
         return 0.5 * (self.a + self.b)
 
 
-class IndependentGaussianTailed(CustomIndependent):
+class IndependentGaussianTailed(IndependentTailed):
     Distribution = GaussianTailed
 
-    def sample_lhs(self, n_samples):
-        return self.base_dist.sample_lhs(n_samples)
 
-
-class LinearTailed(Distribution):
+class LinearTailed(TailedDistribution):
     """Uniform box with linearly-decreasing tails beyond the boundaries.
 
     Given sigma, the total tail probability mass A matches GaussianTailed(a, b, sigma),
@@ -214,24 +212,15 @@ class LinearTailed(Distribution):
         u = torch.rand(sample_shape + self.a.shape, device=self.a.device)
         return self.icdf(u)
 
-    def sample_lhs(self, n_samples):
-        sampler = qmc.LatinHypercube(d=len(self.a.flatten()), seed=42)
-        u_samples = sampler.random(n_samples)
-        u_tensor = torch.tensor(u_samples, dtype=torch.float32, device=self.a.device)
-        return self.icdf(u_tensor)
-
     def mean(self):
         return 0.5 * (self.a + self.b)
 
 
-class IndependentLinearTailed(CustomIndependent):
+class IndependentLinearTailed(IndependentTailed):
     Distribution = LinearTailed
 
-    def sample_lhs(self, n_samples):
-        return self.base_dist.sample_lhs(n_samples)
 
-
-class ExponentialTailed(Distribution):
+class ExponentialTailed(TailedDistribution):
     """Uniform box with exponentially-decaying tails beyond the boundaries.
 
     Given sigma, the total tail probability mass A matches GaussianTailed(a, b, sigma),
@@ -303,24 +292,15 @@ class ExponentialTailed(Distribution):
         u = torch.rand(sample_shape + self.a.shape, device=self.a.device)
         return self.icdf(u)
 
-    def sample_lhs(self, n_samples):
-        sampler = qmc.LatinHypercube(d=len(self.a.flatten()), seed=42)
-        u_samples = sampler.random(n_samples)
-        u_tensor = torch.tensor(u_samples, dtype=torch.float32, device=self.a.device)
-        return self.icdf(u_tensor)
-
     def mean(self):
         return 0.5 * (self.a + self.b)
 
 
-class IndependentExponentialTailed(CustomIndependent):
+class IndependentExponentialTailed(IndependentTailed):
     Distribution = ExponentialTailed
 
-    def sample_lhs(self, n_samples):
-        return self.base_dist.sample_lhs(n_samples)
 
-
-class UniformTailed(Distribution):
+class UniformTailed(TailedDistribution):
     """Uniform distribution extended symmetrically beyond the original box.
 
     Effectively Uniform([a-delta, b+delta]) where delta = A*W/(2*B) is chosen so
@@ -375,18 +355,9 @@ class UniformTailed(Distribution):
         u = torch.rand(sample_shape + self.a.shape, device=self.a.device)
         return self.icdf(u)
 
-    def sample_lhs(self, n_samples):
-        sampler = qmc.LatinHypercube(d=len(self.a.flatten()), seed=42)
-        u_samples = sampler.random(n_samples)
-        u_tensor = torch.tensor(u_samples, dtype=torch.float32, device=self.a.device)
-        return self.icdf(u_tensor)
-
     def mean(self):
         return 0.5 * (self.a + self.b)
 
 
-class IndependentUniformTailed(CustomIndependent):
+class IndependentUniformTailed(IndependentTailed):
     Distribution = UniformTailed
-
-    def sample_lhs(self, n_samples):
-        return self.base_dist.sample_lhs(n_samples)

@@ -2,34 +2,19 @@
 # ABOUTME: Includes C2ST, TARP, and spatial evaluation methods
 
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 from tqdm import tqdm
-import seaborn as sns
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import hamming_loss, roc_auc_score
+from sklearn.metrics import hamming_loss
 from sklearn.model_selection import train_test_split
-from scipy.stats import wasserstein_distance
 
 
-def c2st_auc(X1, X2):
-    """C2ST via AUC-ROC.  0.5 = random (perfect match), higher = more separable (worse).
-    Class-imbalance-immune — safe when len(X1) != len(X2)."""
-    X  = np.vstack([X1, X2])
-    y  = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=42)
-    prob = LogisticRegression(max_iter=1000).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
-    return roc_auc_score(yte, prob)
-
-
-def sliced_wasserstein(X1, X2, n_proj=50, seed=0):
-    """Sliced Wasserstein distance.  0 = identical distributions, higher = more different.
-    Projects to n_proj random 1-D directions and averages 1-D Wasserstein distances."""
-    rng  = np.random.default_rng(seed)
-    d    = X1.shape[1]
-    dirs = rng.standard_normal((n_proj, d))
-    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-    return float(np.mean([wasserstein_distance(X1 @ v, X2 @ v) for v in dirs]))
+def c2st(X1, X2):
+    """C2ST-Hamming: 0.5 = identical distributions, 0 = fully separable."""
+    X = np.vstack([X1, X2])
+    y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    return hamming_loss(y_test, LogisticRegression(max_iter=1000).fit(X_train, y_train).predict(X_test))
 
 
 class SBIEvaluator:
@@ -37,15 +22,6 @@ class SBIEvaluator:
 
     def __init__(self, param_names=['θ₁', 'θ₂']):
         self.param_names = param_names
-
-    def c2st(self, X1, X2):
-        """C2ST score - lower is better (0.5 = identical distributions)"""
-        X = np.vstack([X1, X2])
-        y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        clf = LogisticRegression(max_iter=1000)
-        y_pred = clf.fit(X_train, y_train).predict(X_test)
-        return hamming_loss(y_test, y_pred)
 
     def tarp_score(self, samples, true_theta):
         """TARP calibration score - lower is better"""
@@ -79,7 +55,7 @@ class SBIEvaluator:
         # C2ST comparisons
         for i, method1 in enumerate(methods):
             for method2 in methods[i+1:]:
-                score = self.c2st(samples_dict[method1], samples_dict[method2])
+                score = c2st(samples_dict[method1], samples_dict[method2])
                 results[method1]['c2st_vs_others'][method2] = score
                 results[method2]['c2st_vs_others'][method1] = score
 
@@ -149,13 +125,6 @@ class GridEvaluator:
 
         return results
 
-    def c2st(self, X1, X2):
-        """C2ST score"""
-        X = np.vstack([X1, X2])
-        y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        return hamming_loss(y_test, LogisticRegression(max_iter=1000).fit(X_train, y_train).predict(X_test))
-
     def compute_c2st_grid(self, results, n_points_per_dim):
         """Compute C2ST for grid points"""
         methods = ['Uniform', 'Tailed-Uniform', 'Reference']
@@ -164,54 +133,11 @@ class GridEvaluator:
         for i, m1 in enumerate(methods):
             for m2 in methods[i+1:]:
                 comparison_name = f"{m1}_vs_{m2}"
-                c2st_values = []
-
-                for idx in range(len(results['test_points'])):
-                    c2st_val = self.c2st(results[m1][idx], results[m2][idx])
-                    c2st_values.append(c2st_val)
-
+                c2st_values = [c2st(results[m1][idx], results[m2][idx])
+                               for idx in range(len(results['test_points']))]
                 c2st_grid[comparison_name] = np.array(c2st_values).reshape(n_points_per_dim, n_points_per_dim)
 
         return c2st_grid
-
-    def plot_c2st_grid(self, c2st_grid, n_points_per_dim):
-        """Plot C2ST scores as heatmaps"""
-        sns.set(style="white")
-        comparisons = list(c2st_grid.keys())
-        fig, axes = plt.subplots(len(comparisons), 1, figsize=(10, 8*len(comparisons)))
-        if len(comparisons) == 1: axes = [axes]
-
-        for i, comp in enumerate(comparisons):
-            im = axes[i].imshow(c2st_grid[comp], cmap='RdYlBu_r', vmin=0.3, vmax=0.6,
-                               extent=[self.param_ranges[0][0], self.param_ranges[0][1],
-                                      self.param_ranges[1][0], self.param_ranges[1][1]],
-                               origin='lower')
-
-            # Add text annotations
-            for j in range(n_points_per_dim):
-                for k in range(n_points_per_dim):
-                    value = c2st_grid[comp][j, k]
-                    color = 'white' if value > 0.5 else 'black'
-
-                    # Calculate pixel coordinates for centering
-                    x_extent = self.param_ranges[0][1] - self.param_ranges[0][0]
-                    y_extent = self.param_ranges[1][1] - self.param_ranges[1][0]
-                    x_pos = self.param_ranges[0][0] + (k + 0.5) * x_extent / n_points_per_dim
-                    y_pos = self.param_ranges[1][0] + (j + 0.5) * y_extent / n_points_per_dim
-
-                    axes[i].text(x_pos, y_pos, f'{value:.2f}', ha='center', va='center',
-                               color=color, fontweight='bold', fontsize=6)
-
-            axes[i].set_title(comp.replace('_', ' '), fontsize=18)
-            axes[i].set_xlabel('Parameter 1', fontsize=16)
-            axes[i].set_ylabel('Parameter 2', fontsize=16)
-            axes[i].tick_params(axis='both', which='major', labelsize=14)
-            cbar = fig.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
-            cbar.set_label('C2ST', fontsize=16)
-            cbar.ax.tick_params(labelsize=14)
-
-        plt.tight_layout()
-        plt.show()
 
 
 class CircleEvaluator:
@@ -269,13 +195,6 @@ class CircleEvaluator:
 
         return results
 
-    def c2st(self, X1, X2):
-        """C2ST score"""
-        X = np.vstack([X1, X2])
-        y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        return hamming_loss(y_test, LogisticRegression(max_iter=1000).fit(X_train, y_train).predict(X_test))
-
     def compute_c2st_by_radius(self, results, radii):
         """Compute C2ST organized by radius"""
         methods = ['Uniform', 'GaussianTailed', 'Reference']
@@ -288,115 +207,10 @@ class CircleEvaluator:
 
             for i, m1 in enumerate(methods):
                 for m2 in methods[i+1:]:
-                    c2st_vals = [self.c2st(results[m1][idx], results[m2][idx]) for idx in indices]
+                    c2st_vals = [c2st(results[m1][idx], results[m2][idx]) for idx in indices]
                     c2st_data[f'{radius:.3f}'][f"{m1} vs {m2}"] = c2st_vals
 
         return c2st_data
-
-    def plot_c2st_by_radius(self, c2st_data):
-        """Plot median C2ST scores by radius with percentile error bars"""
-        comparisons = list(next(iter(c2st_data.values())).keys())
-        radii = [float(r) for r in c2st_data.keys()]
-
-        plt.figure(figsize=(10, 6))
-
-        # Define horizontal offsets for each comparison
-        offset_amount = 0.01
-        offsets = {
-            "Uniform vs GaussianTailed": -offset_amount,
-            "Uniform vs Reference": 0,
-            "GaussianTailed vs Reference": offset_amount
-        }
-
-        for comp in comparisons:
-            median_c2st = []
-            lower_err = []
-            upper_err = []
-
-            for radius_str in c2st_data.keys():
-                vals = np.array(c2st_data[radius_str][comp])
-                median = np.median(vals)
-                p16 = np.percentile(vals, 16)
-                p84 = np.percentile(vals, 84)
-
-                median_c2st.append(median)
-                lower_err.append(median - p16)
-                upper_err.append(p84 - median)
-
-            # Set color and style based on comparison
-            if "Uniform vs GaussianTailed" in comp:
-                linestyle = '--'
-                alpha = 0.5
-                color = 'gray'
-            elif "GaussianTailed vs Reference" in comp:
-                linestyle = '-'
-                alpha = 0.85
-                color = 'green'
-            elif "Uniform vs Reference" in comp:
-                linestyle = '-'
-                alpha = 0.85
-                color = "#0096FF"
-            else:
-                linestyle = '-'
-                alpha = 0.85
-                color = 'green'
-
-            # Apply horizontal offset
-            offset = offsets.get(comp, 0)
-            radii_offset = [r + offset for r in radii]
-
-            # Remove connecting lines by using 'o' instead of 'o-'
-            plt.errorbar(radii_offset, median_c2st,
-                        yerr=[lower_err, upper_err],
-                        fmt='o', label=comp,
-                        alpha=alpha, color=color,
-                        capsize=2, capthick=1.5, markersize=6, barsabove=True, elinewidth=1)
-
-        plt.axhline(0.5, color='gray', linestyle='--', linewidth=2, label='Ideal C2ST=0.5')
-        plt.xlabel('Radius', fontsize=16)
-        plt.ylabel('C2ST', fontsize=16)
-        plt.title('C2ST Performance by Distance from Center', fontsize=18)
-        plt.tick_params(axis='both', which='major', labelsize=14)
-        plt.legend(fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.show()
-
-    def plot_c2st_tables(self, c2st_data):
-        """Plot C2ST as colored tables"""
-        sns.set(style="white")
-        comparisons = list(next(iter(c2st_data.values())).keys())
-        fig, axes = plt.subplots(len(comparisons), 1, figsize=(20, 10*len(comparisons)))
-        if len(comparisons) == 1: axes = [axes]
-
-        for i, comp in enumerate(comparisons):
-            radii = list(c2st_data.keys())
-            max_pts = max(len(c2st_data[r][comp]) for r in radii)
-
-            # Create data matrix
-            data = np.full((len(radii), max_pts), np.nan)
-            for j, r in enumerate(radii):
-                vals = c2st_data[r][comp]
-                data[j, :len(vals)] = vals
-
-            # Plot
-            im = axes[i].imshow(data, cmap='RdYlBu_r', vmin=0.3, vmax=0.6)
-
-            # Add text
-            for j in range(len(radii)):
-                for k in range(max_pts):
-                    if not np.isnan(data[j, k]):
-                        color = 'white' if data[j, k] > 0.5 else 'black'
-                        axes[i].text(k, j, f'{data[j, k]:.2f}', ha='center', va='center',
-                                     color=color, fontweight='bold')
-
-            axes[i].set_yticks(range(len(radii)))
-            axes[i].set_yticklabels([f'r={r}' for r in radii])
-            axes[i].set_title(comp.replace('_', ' '))
-            plt.colorbar(im, ax=axes[i])
-
-        plt.tight_layout()
-        plt.show()
 
 
 class RectGridEvaluator:
@@ -404,17 +218,6 @@ class RectGridEvaluator:
 
     def __init__(self, param_ranges):
         self.param_ranges = param_ranges
-
-    def c2st(self, X1, X2):
-        """C2ST score - measures distributional similarity"""
-        X = np.vstack([X1, X2])
-        y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42
-        )
-        clf = LogisticRegression(max_iter=1000)
-        y_pred = clf.fit(X_train, y_train).predict(X_test)
-        return hamming_loss(y_test, y_pred)
 
     def load_grid_data(self, mcmc_folder, n_points_per_dim=20):
         """
@@ -542,8 +345,7 @@ class RectGridEvaluator:
 
             print(f"\nComputing C2ST for {comparison_name}...")
             for idx in tqdm(range(len(reference_samples))):
-                c2st_val = self.c2st(reference_samples[idx], npe_results[method][idx])
-                c2st_values.append(c2st_val)
+                c2st_values.append(c2st(reference_samples[idx], npe_results[method][idx]))
 
             c2st_values = np.array(c2st_values)
             c2st_grid[comparison_name] = c2st_values.reshape(n_points_per_dim,
@@ -557,72 +359,13 @@ class RectGridEvaluator:
 
                 print(f"\nComputing C2ST for {comparison_name}...")
                 for idx in tqdm(range(len(reference_samples))):
-                    c2st_val = self.c2st(npe_results[m1][idx], npe_results[m2][idx])
-                    c2st_values.append(c2st_val)
+                    c2st_values.append(c2st(npe_results[m1][idx], npe_results[m2][idx]))
 
                 c2st_values = np.array(c2st_values)
                 c2st_grid[comparison_name] = c2st_values.reshape(n_points_per_dim,
                                                                  n_points_per_dim)
 
         return c2st_grid
-
-    def plot_c2st_heatmaps(self, c2st_grid, n_points_per_dim, save_path=None):
-        """
-        Plot C2ST scores as heatmaps
-
-        Args:
-            c2st_grid: Dictionary of C2ST arrays
-            n_points_per_dim: Grid dimension
-            save_path: Optional path to save figure
-        """
-        comparisons = list(c2st_grid.keys())
-        n_comparisons = len(comparisons)
-
-        fig, axes = plt.subplots(n_comparisons, 1,
-                                figsize=(12, 8*n_comparisons))
-        if n_comparisons == 1:
-            axes = [axes]
-
-        for i, comp in enumerate(comparisons):
-            im = axes[i].imshow(c2st_grid[comp], cmap='RdYlBu_r',
-                               vmin=0.2, vmax=0.6,
-                               extent=[self.param_ranges[0][0],
-                                      self.param_ranges[0][1],
-                                      self.param_ranges[1][0],
-                                      self.param_ranges[1][1]],
-                               origin='lower', aspect='auto')
-
-            # Add text annotations
-            for j in range(n_points_per_dim):
-                for k in range(n_points_per_dim):
-                    value = c2st_grid[comp][j, k]
-                    color = 'white' if value > 0.5 else 'black'
-
-                    # Calculate pixel coordinates
-                    x_extent = self.param_ranges[0][1] - self.param_ranges[0][0]
-                    y_extent = self.param_ranges[1][1] - self.param_ranges[1][0]
-                    x_pos = self.param_ranges[0][0] + (k + 0.5) * x_extent / n_points_per_dim
-                    y_pos = self.param_ranges[1][0] + (j + 0.5) * y_extent / n_points_per_dim
-
-                    axes[i].text(x_pos, y_pos, f'{value:.2f}',
-                               ha='center', va='center',
-                               color=color, fontsize=8)
-
-            axes[i].set_title(comp.replace('_', ' '), fontsize=18)
-            axes[i].set_xlabel('$\\Omega_m$', fontsize=14)
-            axes[i].set_ylabel('$h$', fontsize=14)
-            cbar = fig.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
-            cbar.set_label('C2ST Score', fontsize=14)
-            cbar.ax.axhline(0.5, color='black', linestyle='--', linewidth=2)
-            axes[i].grid(False)
-
-        plt.tight_layout()
-
-        if save_path:
-            plt.savefig(save_path, bbox_inches='tight', dpi=150)
-            print(f"\nSaved heatmap to: {save_path}")
-
-        plt.show()
 
 
 class DistanceEvaluator:
@@ -747,9 +490,3 @@ class DistanceEvaluator:
 
         return results
 
-    def c2st(self, X1, X2):
-        """C2ST score"""
-        X = np.vstack([X1, X2])
-        y = np.concatenate([np.zeros(len(X1)), np.ones(len(X2))])
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        return hamming_loss(y_test, LogisticRegression(max_iter=1000).fit(X_train, y_train).predict(X_test))
