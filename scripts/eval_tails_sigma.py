@@ -12,7 +12,7 @@ sys.path.insert(0, ROOT)
 
 from sbibm.tasks.gaussian_linear.task import GaussianLinear
 from sbibm.tasks.gaussian_linear_uniform.task import GaussianLinearUniform
-from toolbox.evaluators import DistanceEvaluator, c2st
+from toolbox.evaluators import Evaluator, c2st
 
 DIMS             = [4, 8]
 SIGMAS           = [0.05, 0.1, 0.2, 0.4]
@@ -198,8 +198,12 @@ def main():
                 task = GaussianLinear(dim=dim, prior_scale=1.0)
             else:
                 task = GaussianLinearUniform(dim=dim)
-            simulator    = task.get_simulator()
-            evaluator    = DistanceEvaluator(simulator, param_ranges, task)
+            simulator = task.get_simulator()
+            if hasattr(task, '_get_reference_posterior'):
+                ref_sampler = lambda x, n: task._get_reference_posterior(observation=x.unsqueeze(0)).sample((n,)).cpu().numpy()
+            else:
+                ref_sampler = lambda x, n: task._sample_reference_posterior(n, observation=x.unsqueeze(0)).reshape(n, dim).cpu().numpy()
+            evaluator = Evaluator(simulator, param_ranges, ref_sampler)
             test_points, distance_bins = evaluator.create_test_points(
                 n_points_per_radius=args.n_per_radius
             )
