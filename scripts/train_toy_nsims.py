@@ -1,5 +1,5 @@
 """
-Train one NPE model for the tails-nsims experiment (Exp 2 — simulation budget sweep).
+Train one NPE model for the toy-nsims experiment (Exp 2 — simulation budget sweep).
 Array index → (dim, n_sims, proposal):
   n_per_dim    = len(N_SIMS_LIST) * len(PROPOSALS)   # 20
   dim_idx      = task_id // n_per_dim

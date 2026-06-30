@@ -17,4 +17,4 @@ cd /home/x-ctirapongpra/scratch/tailed-uniform-sbi
 
 echo "Running optuna inference on job $net_index"
 
-python /home/x-ctirapongpra/scratch/tailed-uniform-sbi/scripts/run_optuna.py
+python /home/x-ctirapongpra/scratch/tailed-uniform-sbi/scripts/train_toy_optuna.py

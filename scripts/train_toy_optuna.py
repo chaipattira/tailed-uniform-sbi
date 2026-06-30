@@ -14,10 +14,9 @@ from toolbox.priors import get_priors
 
 def get_hyperprior():
     hyperprior = dict(
-        model=['nsf', 'maf'],
         hidden_features=(4, 64),
-        num_transforms=(1, 5),
-        log2_batch_size=(3, 8),
+        num_transforms=(2, 4),
+        log2_batch_size=(3, 5),
         learning_rate=(1e-4, 1e-2),
     )
     return hyperprior
@@ -52,7 +51,7 @@ def objective(
 
     # Sample hyperparameters
     hyperprior = get_hyperprior()
-    model = trial.suggest_categorical("model", hyperprior['model'])
+    model = 'nsf'
     hidden_features = trial.suggest_int(
         "hidden_features", *hyperprior['hidden_features'], log=True)
     num_transforms = trial.suggest_int(

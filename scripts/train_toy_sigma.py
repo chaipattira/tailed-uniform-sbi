@@ -1,5 +1,5 @@
 """
-Train one NPE model for the tails-sigma experiment (Exp 3 — tail-width sensitivity).
+Train one NPE model for the toy-sigma experiment (Exp 3 — tail-width sensitivity).
 Array index → (dim, sigma_or_uniform, proposal):
 
   n_per_dim = 1 + len(SIGMAS) * len(TAILED_PROPOSALS)   # 17

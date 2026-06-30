@@ -138,3 +138,8 @@ dmypy.json
 *sbi-logs
 
 data/*
+
+docs/_build/
+jobout
+.claude
+.agents

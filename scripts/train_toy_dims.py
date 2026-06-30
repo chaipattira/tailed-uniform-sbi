@@ -1,5 +1,5 @@
 """
-Train one NPE model for the tails-dims experiment (Exp 1 — dimensionality sweep).
+Train one NPE model for the toy-dims experiment (Exp 1 — dimensionality sweep).
 Array index → (dim, proposal):
   dim_idx      = task_id // len(PROPOSALS)   # 0-3
   proposal_idx = task_id  % len(PROPOSALS)   # 0-4
